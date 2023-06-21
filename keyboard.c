@@ -131,14 +131,14 @@ void handle_keyboard1(Keyboard* device, uint8_t pin, bool state) { send_key_to_q
 void handle_keyboard2(Keyboard* device, uint8_t pin, bool state) { send_key_to_queue(device, get_keyboard2_key(pin), state); }
 
 /* Interrupt handling */
-esp_err_t handle_pca9555_input_change(Keyboard* keyboard, PCA9555* device, send_fn_t send_fn) {
+esp_err_t handle_pca9555_input_change(Keyboard* keyboard, PCA9555* device, send_fn_t send_fn, int start_pin, int num_pins) {
     uint16_t current_state;
     esp_err_t res = pca9555_get_gpio_values(device, &current_state);
     if (res != ESP_OK) {
         ESP_LOGE(TAG, "failed to read input state of device %d", device->i2c_addr);
         return res;
     }
-    for (int i = 0; i < 16; i++) {
+    for (int i = start_pin; i < num_pins; i++) {
         if (((current_state >> i) & 0x01) != (device->previous_state & (1 << i))) {
             bool value = (current_state >> i) & 0x01;
             send_fn(keyboard, i, value);
@@ -156,17 +156,17 @@ _Noreturn void intr_task(void* arg) {
         if (xSemaphoreTake(device->intr_trigger, portMAX_DELAY)) {
             ESP_LOGD(TAG, "Received interrupt");
 
-            res = handle_pca9555_input_change(device, device->front, &handle_front);
+            res = handle_pca9555_input_change(device, device->front, &handle_front, 0, 8);
             if (res != ESP_OK) {
                 ESP_LOGE(TAG, "error while processing front pca9555 data");
             }
 
-            res = handle_pca9555_input_change(device, device->keyboard1, &handle_keyboard1);
+            res = handle_pca9555_input_change(device, device->keyboard1, &handle_keyboard1, 0, 16);
             if (res != ESP_OK) {
                 ESP_LOGE(TAG, "error while processing keyboard1 pca9555 data");
             }
 
-            res = handle_pca9555_input_change(device, device->keyboard2, &handle_keyboard2);
+            res = handle_pca9555_input_change(device, device->keyboard2, &handle_keyboard2, 0, 16);
             if (res != ESP_OK) {
                 ESP_LOGE(TAG, "error while processing keyboard2 pca9555 data");
             }
