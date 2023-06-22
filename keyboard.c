@@ -9,6 +9,7 @@
 #include <sdkconfig.h>
 #include <stdbool.h>
 
+#include "driver/adc.h"
 #include "pca9555.h"
 
 static const char* TAG = "keyboard";
@@ -227,6 +228,8 @@ esp_err_t keyboard_init(Keyboard* device) {
 
         res = gpio_config(&io_conf);
         if (res != ESP_OK) return res;
+
+        adc_power_acquire();
 
         xTaskCreate(&intr_task, "PCA9555 interrupt task", 4096, device, 10, &device->intr_task_handle);
         xSemaphoreGive(device->intr_trigger);
