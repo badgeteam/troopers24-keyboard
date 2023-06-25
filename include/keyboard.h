@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <sys/cdefs.h>
 
+#include "freertos/event_groups.h"
 #include "pca9555.h"
 
 __BEGIN_DECLS
@@ -105,6 +106,8 @@ typedef enum {
     KEY_M,
 } Key;
 
+typedef void (*sao_detect_fn_t)(bool);
+
 /* Structs */
 
 typedef struct _keyboard_input_message {
@@ -119,6 +122,8 @@ typedef struct Keyboard {
     uint8_t addr_front;
     uint8_t addr_keyboard1;
     uint8_t addr_keyboard2;
+    uint8_t pin_sao_presence;
+    sao_detect_fn_t sao_presence_cb;
     // Internal state
     PCA9555* front;
     PCA9555* keyboard1;

@@ -157,9 +157,17 @@ _Noreturn void intr_task(void* arg) {
         if (xSemaphoreTake(device->intr_trigger, portMAX_DELAY)) {
             ESP_LOGD(TAG, "Received interrupt");
 
+            uint16_t previous_state = device->front->previous_state;
             res = handle_pca9555_input_change(device, device->front, &handle_front, 0, 8);
             if (res != ESP_OK) {
                 ESP_LOGE(TAG, "error while processing front pca9555 data");
+            }
+            uint16_t current_state = device->front->previous_state;
+
+            bool sao_was_connected = ((previous_state >> device->pin_sao_presence) & 1);
+            bool sao_is_connected = ((current_state >> device->pin_sao_presence) & 1);
+            if (sao_was_connected != sao_is_connected && device->sao_presence_cb != NULL) {
+                device->sao_presence_cb(sao_is_connected);
             }
 
             res = handle_pca9555_input_change(device, device->keyboard1, &handle_keyboard1, 0, 16);
