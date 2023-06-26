@@ -132,13 +132,16 @@ void handle_keyboard1(Keyboard* device, uint8_t pin, bool state) { send_key_to_q
 void handle_keyboard2(Keyboard* device, uint8_t pin, bool state) { send_key_to_queue(device, get_keyboard2_key(pin), state); }
 
 /* Interrupt handling */
-esp_err_t handle_pca9555_input_change(Keyboard* keyboard, PCA9555* device, send_fn_t send_fn, int start_pin, int num_pins) {
-    uint16_t current_state;
-    esp_err_t res = pca9555_get_gpio_values(device, &current_state);
+esp_err_t get_pca9555_state(PCA9555* device, uint16_t* current_state) {
+    esp_err_t res = pca9555_get_gpio_values(device, current_state);
     if (res != ESP_OK) {
         ESP_LOGE(TAG, "failed to read input state of device %d", device->i2c_addr);
         return res;
     }
+    return ESP_OK;
+}
+
+void handle_pca9555_input_change(Keyboard* keyboard, PCA9555* device, uint16_t current_state, send_fn_t send_fn, int start_pin, int num_pins) {
     for (int i = start_pin; i < num_pins; i++) {
         if (((current_state >> i) & 0x01) != (device->previous_state & (1 << i))) {
             bool value = (current_state >> i) & 0x01;
@@ -146,41 +149,47 @@ esp_err_t handle_pca9555_input_change(Keyboard* keyboard, PCA9555* device, send_
         }
     }
     device->previous_state = current_state;
-    return ESP_OK;
 }
 
 _Noreturn void intr_task(void* arg) {
-    esp_err_t res;
+    esp_err_t res_front, res_keyboard1, res_keyboard2;
+    uint16_t state_front, state_keyboard1, state_keyboard2;
     Keyboard* device = (Keyboard*) arg;
 
     while (1) {
         if (xSemaphoreTake(device->intr_trigger, portMAX_DELAY)) {
             ESP_LOGD(TAG, "Received interrupt");
 
-            uint16_t previous_state = device->front->previous_state;
-            res = handle_pca9555_input_change(device, device->front, &handle_front, 0, 8);
-            if (res != ESP_OK) {
+            res_front = get_pca9555_state(device->front, &state_front);
+            res_keyboard1 = get_pca9555_state(device->keyboard1, &state_keyboard1);
+            res_keyboard2 = get_pca9555_state(device->keyboard2, &state_keyboard2);
+
+            if (res_front == ESP_OK) {
+                bool sao_was_connected = ((device->front->previous_state >> device->pin_sao_presence) & 1);
+                bool sao_is_connected = ((state_front >> device->pin_sao_presence) & 1);
+
+                if (sao_was_connected != sao_is_connected && device->sao_presence_cb != NULL) {
+                    device->sao_presence_cb(sao_is_connected);
+                }
+
+                handle_pca9555_input_change(device, device->front, state_front, &handle_front, 0, 8);
+            } else {
                 ESP_LOGE(TAG, "error while processing front pca9555 data");
             }
-            uint16_t current_state = device->front->previous_state;
 
-            bool sao_was_connected = ((previous_state >> device->pin_sao_presence) & 1);
-            bool sao_is_connected = ((current_state >> device->pin_sao_presence) & 1);
-            if (sao_was_connected != sao_is_connected && device->sao_presence_cb != NULL) {
-                device->sao_presence_cb(sao_is_connected);
-            }
-
-            res = handle_pca9555_input_change(device, device->keyboard1, &handle_keyboard1, 0, 16);
-            if (res != ESP_OK) {
+            if (res_keyboard1 == ESP_OK) {
+                handle_pca9555_input_change(device, device->keyboard1, state_keyboard1, &handle_keyboard1, 0, 16);
+            } else {
                 ESP_LOGE(TAG, "error while processing keyboard1 pca9555 data");
             }
 
-            res = handle_pca9555_input_change(device, device->keyboard2, &handle_keyboard2, 0, 16);
-            if (res != ESP_OK) {
+            if (res_keyboard2 == ESP_OK) {
+                handle_pca9555_input_change(device, device->keyboard2, state_keyboard2, &handle_keyboard2, 0, 16);
+            } else {
                 ESP_LOGE(TAG, "error while processing keyboard2 pca9555 data");
             }
 
-            vTaskDelay(20 / portTICK_PERIOD_MS);
+//            vTaskDelay(10 / portTICK_PERIOD_MS);
         }
     }
 }
