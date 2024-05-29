@@ -14,11 +14,9 @@
 
 static const char* TAG = "keyboard";
 
-PCA9555 front     = {0};
-PCA9555 keyboard1 = {0};
-PCA9555 keyboard2 = {0};
+PCA9555 pca = {0};
 
-int get_front_key(uint8_t pin) {
+int get_key(uint8_t pin) {
     switch (pin) {
         case PIN_BTN_DOWN:
             return JOYSTICK_DOWN;
@@ -40,81 +38,6 @@ int get_front_key(uint8_t pin) {
     return -1;
 }
 
-int get_keyboard1_key(uint8_t pin) {
-    switch (pin) {
-        case PIN_KEY_P:
-            return KEY_P;
-        case PIN_KEY_L:
-            return KEY_L;
-        case PIN_KEY_RETURN:
-            return KEY_RETURN;
-        case PIN_KEY_SHIFT:
-            return KEY_SHIFT;
-        case PIN_KEY_O:
-            return KEY_O;
-        case PIN_KEY_K:
-            return KEY_K;
-        case PIN_KEY_M:
-            return KEY_M;
-        case PIN_KEY_BACKSPACE:
-            return KEY_BACKSPACE;
-        case PIN_KEY_I:
-            return KEY_I;
-        case PIN_KEY_J:
-            return KEY_J;
-        case PIN_KEY_N:
-            return KEY_N;
-        case PIN_KEY_U:
-            return KEY_U;
-        case PIN_KEY_H:
-            return KEY_H;
-        case PIN_KEY_B:
-            return KEY_B;
-        case PIN_KEY_Y:
-            return KEY_Y;
-        case PIN_KEY_G:
-            return KEY_G;
-    }
-    return -1;
-}
-
-int get_keyboard2_key(uint8_t pin) {
-    switch (pin) {
-        case PIN_KEY_V:
-            return KEY_V;
-        case PIN_KEY_T:
-            return KEY_T;
-        case PIN_KEY_F:
-            return KEY_F;
-        case PIN_KEY_C:
-            return KEY_C;
-        case PIN_KEY_FN:
-            return KEY_FN;
-        case PIN_KEY_R:
-            return KEY_R;
-        case PIN_KEY_D:
-            return KEY_D;
-        case PIN_KEY_X:
-            return KEY_X;
-        case PIN_KEY_SHIELD:
-            return KEY_SHIELD;
-        case PIN_KEY_E:
-            return KEY_E;
-        case PIN_KEY_S:
-            return KEY_S;
-        case PIN_KEY_Z:
-            return KEY_Z;
-        case PIN_KEY_W:
-            return KEY_W;
-        case PIN_KEY_A:
-            return KEY_A;
-        case PIN_KEY_Q:
-            return KEY_Q;
-        case PIN_KEY_SPACE:
-            return KEY_SPACE;
-    }
-    return -1;
-}
 
 void send_key_to_queue(Keyboard* device, int key, bool state) {
     if (key < 0) return;
@@ -125,11 +48,7 @@ void send_key_to_queue(Keyboard* device, int key, bool state) {
     xQueueSend(device->queue, &message, portMAX_DELAY);
 }
 
-void handle_front(Keyboard* device, uint8_t pin, bool state) { send_key_to_queue(device, get_front_key(pin), state); }
-
-void handle_keyboard1(Keyboard* device, uint8_t pin, bool state) { send_key_to_queue(device, get_keyboard1_key(pin), state); }
-
-void handle_keyboard2(Keyboard* device, uint8_t pin, bool state) { send_key_to_queue(device, get_keyboard2_key(pin), state); }
+void handle_key(Keyboard* device, uint8_t pin, bool state) { send_key_to_queue(device, get_key(pin), state); }
 
 /* Interrupt handling */
 esp_err_t get_pca9555_state(PCA9555* device, uint16_t* current_state) {
@@ -152,41 +71,27 @@ void handle_pca9555_input_change(Keyboard* keyboard, PCA9555* device, uint16_t c
 }
 
 _Noreturn void intr_task(void* arg) {
-    esp_err_t res_front, res_keyboard1, res_keyboard2;
-    uint16_t state_front, state_keyboard1, state_keyboard2;
+    esp_err_t res;
+    uint16_t  state;
     Keyboard* device = (Keyboard*) arg;
 
     while (1) {
         if (xSemaphoreTake(device->intr_trigger, portMAX_DELAY)) {
             ESP_LOGD(TAG, "Received interrupt");
 
-            res_front = get_pca9555_state(device->front, &state_front);
-            res_keyboard1 = get_pca9555_state(device->keyboard1, &state_keyboard1);
-            res_keyboard2 = get_pca9555_state(device->keyboard2, &state_keyboard2);
+            res = get_pca9555_state(device->pca, &state);
 
-            if (res_front == ESP_OK) {
-                bool sao_was_connected = ((device->front->previous_state >> device->pin_sao_presence) & 1);
-                bool sao_is_connected = ((state_front >> device->pin_sao_presence) & 1);
+            if (res == ESP_OK) {
+                bool sao_was_connected = ((device->pca->previous_state >> device->pin_sao_presence) & 1);
+                bool sao_is_connected = ((state >> device->pin_sao_presence) & 1);
 
                 if (sao_was_connected != sao_is_connected && device->sao_presence_cb != NULL) {
                     device->sao_presence_cb(sao_is_connected);
                 }
 
-                handle_pca9555_input_change(device, device->front, state_front, &handle_front, 0, 8);
+                handle_pca9555_input_change(device, device->pca, state, &handle_key, 0, 8);
             } else {
                 ESP_LOGE(TAG, "error while processing front pca9555 data");
-            }
-
-            if (res_keyboard1 == ESP_OK) {
-                handle_pca9555_input_change(device, device->keyboard1, state_keyboard1, &handle_keyboard1, 0, 16);
-            } else {
-                ESP_LOGE(TAG, "error while processing keyboard1 pca9555 data");
-            }
-
-            if (res_keyboard2 == ESP_OK) {
-                handle_pca9555_input_change(device, device->keyboard2, state_keyboard2, &handle_keyboard2, 0, 16);
-            } else {
-                ESP_LOGE(TAG, "error while processing keyboard2 pca9555 data");
             }
 
 //            vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -208,23 +113,11 @@ esp_err_t keyboard_init(Keyboard* device) {
 
     device->queue = xQueueCreate(8, sizeof(keyboard_input_message_t));
 
-    front.i2c_bus       = device->i2c_bus;
-    front.i2c_addr      = device->addr_front;
-    front.i2c_semaphore = device->i2c_semaphore;
-    device->front       = &front;
-    pca9555_init(device->front);
-
-    keyboard1.i2c_bus       = device->i2c_bus;
-    keyboard1.i2c_addr      = device->addr_keyboard1;
-    keyboard1.i2c_semaphore = device->i2c_semaphore;
-    device->keyboard1 = &keyboard1;
-    pca9555_init(device->keyboard1);
-
-    keyboard2.i2c_bus       = device->i2c_bus;
-    keyboard2.i2c_addr      = device->addr_keyboard2;
-    keyboard2.i2c_semaphore = device->i2c_semaphore;
-    device->keyboard2 = &keyboard2;
-    pca9555_init(device->keyboard2);
+    pca.i2c_bus       = device->i2c_bus;
+    pca.i2c_addr      = device->pca_addr;
+    pca.i2c_semaphore = device->i2c_semaphore;
+    device->pca         = &pca;
+    pca9555_init(device->pca);
 
     if (device->intr_pin) {
         // Create interrupt trigger
