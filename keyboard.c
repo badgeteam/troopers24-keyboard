@@ -34,6 +34,8 @@ int get_key(uint8_t pin) {
             return BUTTON_BACK;
         case PIN_BTN_START:
             return BUTTON_START;
+        case PIN_BTN_PUSH:
+            return JOYSTICK_PUSH;
     }
     return -1;
 }
@@ -89,7 +91,7 @@ _Noreturn void intr_task(void* arg) {
                     device->sao_presence_cb(sao_is_connected);
                 }
 
-                handle_pca9555_input_change(device, device->pca, state, &handle_key, 0, 8);
+                handle_pca9555_input_change(device, device->pca, state, &handle_key, 0, 9);
             } else {
                 ESP_LOGE(TAG, "error while processing front pca9555 data");
             }

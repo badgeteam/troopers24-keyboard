@@ -18,10 +18,11 @@ __BEGIN_DECLS
 #define PIN_BTN_LEFT   1
 #define PIN_BTN_RIGHT  2
 #define PIN_BTN_UP     3
-#define PIN_BTN_SELECT 4
+#define PIN_BTN_PUSH   4
 #define PIN_BTN_A      5
 #define PIN_BTN_B      6
 #define PIN_BTN_START  7
+#define PIN_BTN_SELECT 8
 
 /* Keys */
 
@@ -34,6 +35,7 @@ typedef enum {
     JOYSTICK_DOWN,
     JOYSTICK_LEFT,
     JOYSTICK_RIGHT,
+    JOYSTICK_PUSH,
 } Key;
 
 typedef void (*sao_detect_fn_t)(bool);
