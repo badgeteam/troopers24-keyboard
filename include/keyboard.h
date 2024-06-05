@@ -16,8 +16,8 @@ __BEGIN_DECLS
 /* Front */
 #define PIN_BTN_DOWN   0
 #define PIN_BTN_LEFT   1
-#define PIN_BTN_RIGHT  2
-#define PIN_BTN_UP     3
+#define PIN_BTN_RIGHT  3
+#define PIN_BTN_UP     2
 #define PIN_BTN_PUSH   4
 #define PIN_BTN_A      5
 #define PIN_BTN_B      6
