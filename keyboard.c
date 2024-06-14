@@ -72,7 +72,7 @@ void handle_pca9555_input_change(Keyboard* keyboard, PCA9555* device, uint16_t c
     device->previous_state = current_state;
 }
 
-_Noreturn void intr_task(void* arg) {
+_Noreturn static void intr_task(void* arg) {
     esp_err_t res;
     uint16_t  state;
     Keyboard* device = (Keyboard*) arg;
@@ -95,13 +95,11 @@ _Noreturn void intr_task(void* arg) {
             } else {
                 ESP_LOGE(TAG, "error while processing front pca9555 data");
             }
-
-//            vTaskDelay(10 / portTICK_PERIOD_MS);
         }
     }
 }
 
-void intr_handler(void* arg) { /* in interrupt handler */
+static void intr_handler(void* arg) { /* in interrupt handler */
     Keyboard* device = (Keyboard*) arg;
     xSemaphoreGiveFromISR(device->intr_trigger, NULL);
     portYIELD_FROM_ISR();
