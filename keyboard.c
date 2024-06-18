@@ -40,6 +40,16 @@ int get_key(uint8_t pin) {
     return -1;
 }
 
+bool keyboard_key_was_pressed(Keyboard* device, Key key) {
+    keyboard_input_message_t buttonMessage = {0};
+
+    if (xQueueReceive(device->queue, &buttonMessage, pdMS_TO_TICKS(10)) == pdTRUE) {
+        if (buttonMessage.state && buttonMessage.input == key) {
+            return true;
+        }
+    }
+    return false;
+}
 
 void send_key_to_queue(Keyboard* device, int key, bool state) {
     if (key < 0) return;

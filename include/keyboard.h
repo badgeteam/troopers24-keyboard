@@ -68,5 +68,6 @@ typedef void (*send_fn_t)(Keyboard*, uint8_t, bool);
 /* Public methods */
 
 esp_err_t keyboard_init(Keyboard* device);
+bool keyboard_key_was_pressed(Keyboard* device, Key key);
 
 __END_DECLS
