@@ -16,7 +16,7 @@ static const char* TAG = "keyboard";
 
 PCA9555 pca = {0};
 
-int get_key(uint8_t pin) {
+static int get_key(uint8_t pin) {
     switch (pin) {
         case PIN_BTN_DOWN:
             return JOYSTICK_DOWN;
@@ -40,6 +40,30 @@ int get_key(uint8_t pin) {
     return -1;
 }
 
+static int get_pin(Key key) {
+    switch (key) {
+        case JOYSTICK_DOWN:
+            return PIN_BTN_DOWN;
+        case JOYSTICK_LEFT:
+            return PIN_BTN_LEFT;
+        case JOYSTICK_RIGHT:
+            return PIN_BTN_RIGHT;
+        case JOYSTICK_UP:
+            return PIN_BTN_UP;
+        case BUTTON_SELECT:
+            return PIN_BTN_SELECT;
+        case BUTTON_ACCEPT:
+            return PIN_BTN_A;
+        case BUTTON_BACK:
+            return PIN_BTN_B;
+        case BUTTON_START:
+            return PIN_BTN_START;
+        case JOYSTICK_PUSH:
+            return PIN_BTN_PUSH;
+    }
+    return -1;
+}
+
 bool keyboard_key_was_pressed(Keyboard* device, Key key) {
     keyboard_input_message_t buttonMessage = {0};
 
@@ -49,6 +73,11 @@ bool keyboard_key_was_pressed(Keyboard* device, Key key) {
         }
     }
     return false;
+}
+
+bool keyboard_key_currently_pressed(Keyboard* device, Key key) {
+    ESP_LOGI(TAG, "currently_pressed %d pin %d: %d", device->pca->previous_state, get_pin(key), device->pca->previous_state >> get_pin(key) & 1);
+    return (device->pca->previous_state >> get_pin(key)) & 1;
 }
 
 void send_key_to_queue(Keyboard* device, int key, bool state) {
